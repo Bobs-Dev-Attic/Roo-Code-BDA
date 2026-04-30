@@ -273,8 +273,6 @@ export async function run(promptArg: string | undefined, flagOptions: FlagOption
 	}
 
 	// Validations
-	// TODO: Validate the API key for the chosen provider.
-	// TODO: Validate the model for the chosen provider.
 
 	if (!isSupportedProvider(extensionHostOptions.provider)) {
 		console.error(
@@ -285,6 +283,10 @@ export async function run(promptArg: string | undefined, flagOptions: FlagOption
 
 	extensionHostOptions.apiKey =
 		extensionHostOptions.apiKey || flagOptions.apiKey || getApiKeyFromEnv(extensionHostOptions.provider)
+
+	if (typeof extensionHostOptions.apiKey === "string") {
+		extensionHostOptions.apiKey = extensionHostOptions.apiKey.trim()
+	}
 
 	if (!extensionHostOptions.apiKey) {
 		if (extensionHostOptions.provider === "roo") {
@@ -300,6 +302,17 @@ export async function run(promptArg: string | undefined, flagOptions: FlagOption
 			)
 		}
 
+		process.exit(1)
+	}
+
+	if (typeof extensionHostOptions.model === "string") {
+		extensionHostOptions.model = extensionHostOptions.model.trim()
+	}
+
+	if (!extensionHostOptions.model) {
+		console.error(
+			`[CLI] Error: No model provided for provider "${extensionHostOptions.provider}". Use --model or set a default model in settings.`,
+		)
 		process.exit(1)
 	}
 

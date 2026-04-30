@@ -145,6 +145,16 @@ export const processTaskInContainer = async ({
 	}
 
 	logger.error(`all ${maxRetries + 1} attempts failed, giving up`)
+	await updateTask(taskId, { passed: false, finishedAt: new Date() })
 
-	// TODO: Mark task as failed.
+	const task = await findTask(taskId)
+	await (
+		await redisClient()
+	).publish(
+		getPubSubKey(task.runId),
+		JSON.stringify({
+			eventName: RooCodeEventName.EvalFail,
+			taskId,
+		} satisfies TaskEvent),
+	)
 }
