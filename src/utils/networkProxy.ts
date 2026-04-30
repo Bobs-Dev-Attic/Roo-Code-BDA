@@ -85,24 +85,12 @@ function restoreTlsVerificationOverride(): void {
 }
 
 function applyTlsVerificationOverride(config: ProxyConfig): void {
-	// Only relevant in debug mode with an active proxy.
-	if (!config.isDebugMode || !config.enabled) {
-		restoreTlsVerificationOverride()
-		return
+	restoreTlsVerificationOverride()
+	if (config.isDebugMode && config.enabled && config.tlsInsecure) {
+		log(
+			"tlsInsecure is enabled, but process-wide TLS verification override is disabled for safety. Configure TLS at client/dispatcher scope instead.",
+		)
 	}
-
-	if (!config.tlsInsecure) {
-		restoreTlsVerificationOverride()
-		return
-	}
-
-	if (!tlsVerificationOverridden) {
-		originalNodeTlsRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED
-	}
-
-	// CodeQL: debug-only opt-in for MITM debugging.
-	process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0" // lgtm[js/disabling-certificate-validation]
-	tlsVerificationOverridden = true
 }
 
 /**

@@ -133,7 +133,7 @@ describe("networkProxy", () => {
 			expect(process.env.NODE_TLS_REJECT_UNAUTHORIZED).toBeUndefined()
 		})
 
-		it("should disable TLS verification when tlsInsecure is enabled (debug mode only)", () => {
+		it("should not disable TLS verification process-wide when tlsInsecure is enabled", () => {
 			mockConfig.get.mockImplementation((key: string) => {
 				if (key === "debugProxy.enabled") return true
 				if (key === "debugProxy.serverUrl") return "http://localhost:8080"
@@ -144,7 +144,7 @@ describe("networkProxy", () => {
 
 			void initializeNetworkProxy(context, mockOutputChannel)
 
-			expect(process.env.NODE_TLS_REJECT_UNAUTHORIZED).toBe("0")
+			expect(process.env.NODE_TLS_REJECT_UNAUTHORIZED).toBeUndefined()
 		})
 
 		it("should register configuration change listener in debug mode", () => {

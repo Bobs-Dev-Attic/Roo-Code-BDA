@@ -133,6 +133,7 @@ const mockFs = {
 		;(error as any).code = "ENOENT"
 		throw error
 	}),
+	realpath: vi.fn().mockImplementation(async (path: string) => path),
 
 	rename: vi.fn().mockImplementation(async (oldPath: string, newPath: string) => {
 		// Check if the old file exists

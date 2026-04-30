@@ -32,11 +32,19 @@ export async function getStorageBasePath(defaultPath: string): Promise<string> {
 	try {
 		// Ensure custom path exists
 		await fs.mkdir(customStoragePath, { recursive: true })
+		const resolvedCustomStoragePath = await fs
+			.realpath(customStoragePath)
+			.catch(() => path.resolve(customStoragePath))
+		const normalizedResolvedPath = path.normalize(resolvedCustomStoragePath)
+
+		if (normalizedResolvedPath === path.parse(normalizedResolvedPath).root) {
+			throw new Error(`Unsafe custom storage path: ${normalizedResolvedPath}`)
+		}
 
 		// Check directory write permission without creating temp files
-		await fs.access(customStoragePath, fsConstants.R_OK | fsConstants.W_OK | fsConstants.X_OK)
+		await fs.access(normalizedResolvedPath, fsConstants.R_OK | fsConstants.W_OK | fsConstants.X_OK)
 
-		return customStoragePath
+		return normalizedResolvedPath
 	} catch (error) {
 		// If path is unusable, report error and fall back to default path
 		console.error(`Custom storage path is unusable: ${error instanceof Error ? error.message : String(error)}`)
