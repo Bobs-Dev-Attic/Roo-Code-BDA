@@ -2881,9 +2881,16 @@ export const webviewMessageHandler = async (
 		case "filterMarketplaceItems": {
 			if (marketplaceManager && message.filters) {
 				try {
+					const clientKey = `${provider.providerId ?? "unknown"}:marketplace-filter`
+					const assessment = assessMarketplaceFilterRequest(clientKey, message.filters.search)
+					if (!assessment.allowed) {
+						provider.log(`Marketplace filter request blocked: ${assessment.reason ?? "unknown"}`)
+						return
+					}
+
 					await marketplaceManager.updateWithFilteredItems({
 						type: message.filters.type as MarketplaceItemType | undefined,
-						search: message.filters.search,
+						search: assessment.sanitizedSearch,
 						tags: message.filters.tags,
 					})
 					await provider.postStateToWebview()
