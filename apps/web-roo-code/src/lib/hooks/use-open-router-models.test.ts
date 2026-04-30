@@ -99,7 +99,7 @@ describe("buildEnhancedModelSearchSections", () => {
 	const hardware: HardwareProfile = { gpuVramGb: 12, ramGb: 32, cpuClass: "high", backend: "cuda" }
 
 	it("returns compatible models with variant highlighting, reasons, and grade", () => {
-		const sections = buildEnhancedModelSearchSections(variantModels, "model", hardware)
+		const sections = buildEnhancedModelSearchSections(variantModels, "model", hardware, "relevance", 3, "balanced")
 
 		expect(sections.compatible).toHaveLength(1)
 		expect(sections.compatible[0].variant.name).toBe("7B Q4_K_M")
@@ -108,12 +108,28 @@ describe("buildEnhancedModelSearchSections", () => {
 	})
 
 	it("returns near-miss badges for incompatible variants", () => {
-		const sections = buildEnhancedModelSearchSections(variantModels, "model", hardware)
+		const sections = buildEnhancedModelSearchSections(variantModels, "model", hardware, "relevance", 3, "balanced")
 		expect(sections.nearMisses[0].reason).toContain("needs +2GB VRAM")
 	})
 
 	it("supports configurable relevant sorting", () => {
-		const sections = buildEnhancedModelSearchSections(variantModels, "model", hardware, "downloads")
+		const sections = buildEnhancedModelSearchSections(variantModels, "model", hardware, "downloads", 3, "balanced")
 		expect(sections.relevant.map((model) => model.id)).toEqual(["provider/model-b", "provider/model-a"])
+	})
+
+	it("uses conservative estimated compatibility when hardware detection is incomplete", () => {
+		const sections = buildEnhancedModelSearchSections(variantModels, "model", { cpuClass: "high", backend: "cuda" }, "relevance", 3, "balanced")
+		expect(sections.compatible[0].estimatedCompatibility).toBe(true)
+		expect(sections.compatible[0].compatibilityLabel).toBe("Estimated compatible")
+	})
+
+	it("phase 1 omits grades", () => {
+		const sections = buildEnhancedModelSearchSections(variantModels, "model", hardware, "relevance", 1, "balanced")
+		expect(sections.compatible[0].grade).toBeUndefined()
+	})
+
+	it("supports ranking profiles", () => {
+		const speed = buildEnhancedModelSearchSections(variantModels, "model", hardware, "relevance", 4, "best_speed")
+		expect(speed.relevant[0].id).toBe("provider/model-a")
 	})
 })

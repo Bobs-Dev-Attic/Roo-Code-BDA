@@ -2,6 +2,7 @@ import { z } from "zod"
 import { useQuery } from "@tanstack/react-query"
 
 import { ModelInfo } from "@roo-code/types"
+import { MODEL_SEARCH_GRADE_TOOLTIP, ModelSearchPhase, RankingProfile } from "../model-search/roadmap"
 
 const parsePrice = (price?: string) => (price ? parseFloat(price) * 1_000_000 : undefined)
 
@@ -68,7 +69,10 @@ export type CompatibleModelResult = {
 	model: ModelSearchModelWithVariants
 	variant: ModelVariantRequirement
 	whyCompatible: string[]
-	grade: PerformanceGrade
+	compatibilityLabel: "Compatible" | "Estimated compatible"
+	estimatedCompatibility: boolean
+	grade?: PerformanceGrade
+	gradeTooltip?: string
 }
 
 export type NearMissResult = {
@@ -205,12 +209,15 @@ const compareRelevantModels = (a: ModelSearchModelWithVariants, b: ModelSearchMo
 export const buildEnhancedModelSearchSections = (
 	models: Record<string, ModelSearchModelWithVariants>,
 	query: string,
-	hardware?: HardwareProfile,
+	hardware: HardwareProfile | undefined,
 	sortBy: ModelSortOption = "relevance",
+	phase: ModelSearchPhase = 3,
+	rankingProfile: RankingProfile = "balanced",
 ): EnhancedModelSearchSections => {
+	const effectiveSort: ModelSortOption = rankingProfile === "best_speed" ? "speed" : rankingProfile === "best_quality" ? "quality" : sortBy
 	const relevant = Object.values(models)
 		.filter((model) => includesQuery(model, query))
-		.sort((a, b) => compareRelevantModels(a, b, sortBy))
+		.sort((a, b) => compareRelevantModels(a, b, effectiveSort))
 
 	const compatible: CompatibleModelResult[] = []
 	const nearMisses: NearMissResult[] = []
@@ -251,11 +258,15 @@ export const buildEnhancedModelSearchSections = (
 			if (failedReason) {
 				nearMisses.push({ model, variant, reason: failedReason })
 			} else {
+				const uncertainHardware = hardware?.gpuVramGb === undefined || hardware?.ramGb === undefined
 				compatible.push({
 					model,
 					variant,
 					whyCompatible: reasons.length ? reasons : ["Compatible"],
-					grade: computeGrade(variant, hardware),
+					estimatedCompatibility: uncertainHardware,
+					compatibilityLabel: uncertainHardware ? "Estimated compatible" : "Compatible",
+					grade: phase >= 3 ? computeGrade(variant, hardware) : undefined,
+					gradeTooltip: phase >= 3 ? MODEL_SEARCH_GRADE_TOOLTIP : undefined,
 				})
 			}
 		}
