@@ -1,4 +1,6 @@
 import * as path from "path"
+import * as fs from "fs"
+import * as os from "os"
 
 import * as vscode from "vscode"
 
@@ -11,10 +13,7 @@ export class ShellIntegrationManager {
 	 * @returns The path to the temporary directory
 	 */
 	public static zshInitTmpDir(env: Record<string, string>): string {
-		// Create a temporary directory with the sticky bit set for security
-		const os = require("os")
-		const path = require("path")
-		const tmpDir = path.join(os.tmpdir(), `roo-zdotdir-${Math.random().toString(36).substring(2, 15)}`)
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "roo-zdotdir-"))
 		console.info(`[TerminalRegistry] Creating temporary directory for ZDOTDIR: ${tmpDir}`)
 
 		// Save original ZDOTDIR as ROO_ZDOTDIR
@@ -22,19 +21,10 @@ export class ShellIntegrationManager {
 			env.ROO_ZDOTDIR = process.env.ZDOTDIR
 		}
 
-		// Create the temporary directory
-		vscode.workspace.fs
-			.createDirectory(vscode.Uri.file(tmpDir))
-			.then(() => {
-				console.info(`[TerminalRegistry] Created temporary directory for ZDOTDIR at ${tmpDir}`)
-
-				// Create .zshrc in the temporary directory
-				const zshrcPath = `${tmpDir}/.zshrc`
-
-				// Get the path to the shell integration script
-				const shellIntegrationPath = this.getShellIntegrationPath("zsh")
-
-				const zshrcContent = `
+		try {
+			const zshrcPath = `${tmpDir}/.zshrc`
+			const shellIntegrationPath = this.getShellIntegrationPath("zsh")
+			const zshrcContent = `
 	source "${shellIntegrationPath}"
 	ZDOTDIR=\${ROO_ZDOTDIR:-$HOME}
 	unset ROO_ZDOTDIR
@@ -44,21 +34,11 @@ export class ShellIntegrationManager {
 	[ -f "$ZDOTDIR/.zlogin" ] && source "$ZDOTDIR/.zlogin"
 	[ "$ZDOTDIR" = "$HOME" ] && unset ZDOTDIR
 	`
-				console.info(`[TerminalRegistry] Creating .zshrc file at ${zshrcPath} with content:\n${zshrcContent}`)
-				vscode.workspace.fs.writeFile(vscode.Uri.file(zshrcPath), Buffer.from(zshrcContent)).then(
-					// Success handler
-					() => {
-						console.info(`[TerminalRegistry] Successfully created .zshrc file at ${zshrcPath}`)
-					},
-					// Error handler
-					(error: Error) => {
-						console.error(`[TerminalRegistry] Error creating .zshrc file at ${zshrcPath}: ${error}`)
-					},
-				)
-			})
-			.then(undefined, (error: Error) => {
-				console.error(`[TerminalRegistry] Error creating temporary directory at ${tmpDir}: ${error}`)
-			})
+			fs.writeFileSync(zshrcPath, zshrcContent)
+			console.info(`[TerminalRegistry] Successfully created .zshrc file at ${zshrcPath}`)
+		} catch (error) {
+			console.error(`[TerminalRegistry] Error preparing temporary directory at ${tmpDir}: ${error}`)
+		}
 
 		return tmpDir
 	}

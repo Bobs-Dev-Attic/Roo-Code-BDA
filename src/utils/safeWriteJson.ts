@@ -1,6 +1,7 @@
 import * as fs from "fs/promises"
 import * as fsSync from "fs"
 import * as path from "path"
+import { randomUUID } from "crypto"
 import * as lockfile from "proper-lockfile"
 import { JsonStreamStringify } from "json-stream-stringify"
 
@@ -86,7 +87,7 @@ async function safeWriteJson(filePath: string, data: any, options?: SafeWriteJso
 		// Step 1: Write data to a new temporary file.
 		actualTempNewFilePath = path.join(
 			path.dirname(absoluteFilePath),
-			`.${path.basename(absoluteFilePath)}.new_${Date.now()}_${Math.random().toString(36).substring(2)}.tmp`,
+			`.${path.basename(absoluteFilePath)}.new_${Date.now()}_${randomUUID()}.tmp`,
 		)
 
 		await _streamDataToFile(actualTempNewFilePath, data, options?.prettyPrint)
@@ -98,7 +99,7 @@ async function safeWriteJson(filePath: string, data: any, options?: SafeWriteJso
 			// Target exists, create a backup path and rename.
 			actualTempBackupFilePath = path.join(
 				path.dirname(absoluteFilePath),
-				`.${path.basename(absoluteFilePath)}.bak_${Date.now()}_${Math.random().toString(36).substring(2)}.tmp`,
+				`.${path.basename(absoluteFilePath)}.bak_${Date.now()}_${randomUUID()}.tmp`,
 			)
 			await fs.rename(absoluteFilePath, actualTempBackupFilePath)
 		} catch (accessError: any) {

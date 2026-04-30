@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import { userInfo } from "os"
 import * as path from "path"
+import * as fs from "fs"
 
 // Security: Allowlist of approved shell executables to prevent arbitrary command execution
 const SHELL_ALLOWLIST = new Set<string>([
@@ -111,6 +112,31 @@ const SHELL_PATHS = {
 	TCSH: "/bin/tcsh",
 	FALLBACK: "/bin/sh",
 } as const
+
+const SHELL_BASENAME_ALLOWLIST = new Set([
+	"sh",
+	"bash",
+	"zsh",
+	"dash",
+	"ash",
+	"csh",
+	"tcsh",
+	"ksh",
+	"ksh93",
+	"mksh",
+	"pdksh",
+	"fish",
+	"elvish",
+	"xonsh",
+	"nu",
+	"nushell",
+	"ion",
+	"busybox",
+	"cmd.exe",
+	"powershell.exe",
+	"pwsh.exe",
+	"wsl.exe",
+])
 
 interface MacTerminalProfile {
 	path?: string | string[]
@@ -309,6 +335,16 @@ function isShellAllowed(shellPath: string): boolean {
 				return true
 			}
 		}
+	}
+
+	try {
+		const resolvedPath = fs.realpathSync.native(normalizedPath)
+		const executableName = path.basename(resolvedPath).toLowerCase()
+		if (SHELL_BASENAME_ALLOWLIST.has(executableName)) {
+			return true
+		}
+	} catch {
+		// ignore path resolution errors and fall through to false
 	}
 
 	return false
