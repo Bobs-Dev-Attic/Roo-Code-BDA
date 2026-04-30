@@ -31,6 +31,40 @@ export const openRouterModelSchema = z.object({
 export type OpenRouterModel = z.infer<typeof openRouterModelSchema>
 
 export type OpenRouterModelRecord = Record<string, OpenRouterModel & { modelInfo: ModelInfo }>
+export type OpenRouterModelWithInfo = OpenRouterModel & { modelInfo: ModelInfo }
+
+export type ModelSearchResultSections = {
+	compatible: OpenRouterModelWithInfo[]
+	relevant: OpenRouterModelWithInfo[]
+}
+
+const includesQuery = (model: OpenRouterModelWithInfo, query: string) => {
+	const normalizedQuery = query.trim().toLowerCase()
+	if (!normalizedQuery) {
+		return true
+	}
+
+	return [model.name, model.id, model.description].some((value) => value.toLowerCase().includes(normalizedQuery))
+}
+
+/**
+ * Returns phase-1 model-search sections:
+ * - compatible: models that match the keyword and pass compatibility checks
+ * - relevant: all keyword matches in alphabetical order (including compatible models)
+ */
+export const buildModelSearchSections = (
+	models: OpenRouterModelRecord,
+	query: string,
+	isCompatible: (model: OpenRouterModelWithInfo) => boolean,
+): ModelSearchResultSections => {
+	const relevant = Object.values(models)
+		.filter((model) => includesQuery(model, query))
+		.sort((a, b) => a.name.localeCompare(b.name))
+
+	const compatible = relevant.filter(isCompatible)
+
+	return { compatible, relevant }
+}
 
 export const getOpenRouterModels = async (): Promise<OpenRouterModelRecord> => {
 	const response = await fetch("https://openrouter.ai/api/v1/models")
