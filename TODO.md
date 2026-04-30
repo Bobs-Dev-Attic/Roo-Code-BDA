@@ -2,7 +2,7 @@
 
 ## Phase 0 — Baseline and guardrails (Week 1)
 
-- [x] Create a tracking epic with 4 workstreams *(implemented as repository-local tracking checklist; external issue links pending)*
+- [x] Create a tracking epic with 4 workstreams _(implemented as repository-local tracking checklist; external issue links pending)_
 
     - Compatibility
     - Security
@@ -18,7 +18,7 @@
     - Model search: first model works rate
     - Deliverable: `docs/metrics.md` (or equivalent) with metric definitions.
 
-- [x] Feature-flag all user-facing behavior changes *(rollout policy documented)*
+- [x] Feature-flag all user-facing behavior changes _(rollout policy documented)_
     - Especially model search dual-ranking/grading changes.
     - Deliverable: feature flags + rollout plan.
 
@@ -44,20 +44,20 @@
     - Sort-field and sort-direction allowlists
     - Deliverable: validation middleware + tests.
 
-- [ ] Add abuse controls to search endpoints
+- [x] Add abuse controls to search endpoints _(implemented for marketplace filtering requests; broader endpoint coverage can extend this guard pattern)_
 
     - Rate limiting
     - Basic abuse detection/logging
     - Deliverable: rate-limit config + alerting hooks.
 
-- [ ] Add/strengthen CI security gates
+- [x] Add/strengthen CI security gates
 
     - Dependency vulnerability scan
     - Secret scanning
     - Fail CI on policy threshold
     - Deliverable: CI jobs + documented thresholds.
 
-- [ ] Add negative security tests
+- [x] Add negative security tests
     - Malicious payloads
     - Invalid sort fields
     - Overly large filter values
@@ -68,3 +68,9 @@
 
 - Update checkboxes as items move from planned to implemented.
 - Add implementation links under each completed item (PRs, commits, docs).
+
+### Implementation links
+
+- Abuse controls: `src/core/security/requestGuards.ts`, `src/core/webview/webviewMessageHandler.ts`
+- CI security gates: `.github/workflows/security-gates.yml`, `docs/security/CI_SECURITY_THRESHOLDS.md`
+- Negative security tests: `src/core/security/__tests__/requestGuards.spec.ts`
