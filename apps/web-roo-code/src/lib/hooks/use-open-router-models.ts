@@ -2,6 +2,7 @@ import { z } from "zod"
 import { useQuery } from "@tanstack/react-query"
 
 import { ModelInfo } from "@roo-code/types"
+import { MODEL_SEARCH_GRADE_TOOLTIP, ModelSearchPhase, RankingProfile } from "../model-search/roadmap"
 
 const parsePrice = (price?: string) => (price ? parseFloat(price) * 1_000_000 : undefined)
 
@@ -36,6 +37,56 @@ export type OpenRouterModelWithInfo = OpenRouterModel & { modelInfo: ModelInfo }
 export type ModelSearchResultSections = {
 	compatible: OpenRouterModelWithInfo[]
 	relevant: OpenRouterModelWithInfo[]
+}
+
+export type PerformanceGrade = "A" | "B" | "C" | "D"
+
+export type HardwareProfile = {
+	gpuVramGb?: number
+	ramGb?: number
+	cpuClass?: "low" | "mid" | "high"
+	backend?: "cpu" | "cuda" | "metal"
+}
+
+export type ModelVariantRequirement = {
+	name: string
+	minVramGb?: number
+	minRamGb?: number
+	minCpuClass?: "low" | "mid" | "high"
+	backend?: "cpu" | "cuda" | "metal"
+	sizeBillions?: number
+	speedScore?: number
+	qualityScore?: number
+	downloads?: number
+	updatedAt?: number
+}
+
+export type ModelSearchModelWithVariants = OpenRouterModelWithInfo & {
+	variants?: ModelVariantRequirement[]
+}
+
+export type CompatibleModelResult = {
+	model: ModelSearchModelWithVariants
+	variant: ModelVariantRequirement
+	whyCompatible: string[]
+	compatibilityLabel: "Compatible" | "Estimated compatible"
+	estimatedCompatibility: boolean
+	grade?: PerformanceGrade
+	gradeTooltip?: string
+}
+
+export type NearMissResult = {
+	model: ModelSearchModelWithVariants
+	variant?: ModelVariantRequirement
+	reason: string
+}
+
+export type ModelSortOption = "relevance" | "size" | "speed" | "quality" | "downloads" | "updated"
+
+export type EnhancedModelSearchSections = {
+	compatible: CompatibleModelResult[]
+	relevant: ModelSearchModelWithVariants[]
+	nearMisses: NearMissResult[]
 }
 
 const includesQuery = (model: OpenRouterModelWithInfo, query: string) => {
@@ -109,3 +160,117 @@ export const getOpenRouterModels = async (): Promise<OpenRouterModelRecord> => {
 
 export const useOpenRouterModels = () =>
 	useQuery<OpenRouterModelRecord>({ queryKey: ["getOpenRouterModels"], queryFn: getOpenRouterModels })
+
+const cpuRank = (cpu: HardwareProfile["cpuClass"]) => {
+	if (!cpu) {
+		return 0
+	}
+	return cpu === "high" ? 3 : cpu === "mid" ? 2 : 1
+}
+
+const gradeFromScore = (score: number): PerformanceGrade => {
+	if (score >= 85) return "A"
+	if (score >= 70) return "B"
+	if (score >= 50) return "C"
+	return "D"
+}
+
+const computeGrade = (variant: ModelVariantRequirement, hardware?: HardwareProfile): PerformanceGrade => {
+	const vramHeadroom = hardware?.gpuVramGb && variant.minVramGb ? Math.max(0, hardware.gpuVramGb - variant.minVramGb) : 0
+	const ramHeadroom = hardware?.ramGb && variant.minRamGb ? Math.max(0, hardware.ramGb - variant.minRamGb) : 0
+	const fitScore = Math.min(100, 60 + vramHeadroom * 5 + ramHeadroom * 2)
+	const speedScore = variant.speedScore ?? 60
+	const qualityScore = variant.qualityScore ?? 60
+	return gradeFromScore(fitScore * 0.4 + speedScore * 0.3 + qualityScore * 0.3)
+}
+
+const compareRelevantModels = (a: ModelSearchModelWithVariants, b: ModelSearchModelWithVariants, sortBy: ModelSortOption) => {
+	const maxNum = (values: Array<number | undefined>) => Math.max(...values.map((value) => value ?? 0))
+
+	if (sortBy === "size") {
+		return maxNum((b.variants ?? []).map((variant) => variant.sizeBillions)) - maxNum((a.variants ?? []).map((variant) => variant.sizeBillions))
+	}
+	if (sortBy === "speed") {
+		return maxNum((b.variants ?? []).map((variant) => variant.speedScore)) - maxNum((a.variants ?? []).map((variant) => variant.speedScore))
+	}
+	if (sortBy === "quality") {
+		return maxNum((b.variants ?? []).map((variant) => variant.qualityScore)) - maxNum((a.variants ?? []).map((variant) => variant.qualityScore))
+	}
+	if (sortBy === "downloads") {
+		return maxNum((b.variants ?? []).map((variant) => variant.downloads)) - maxNum((a.variants ?? []).map((variant) => variant.downloads))
+	}
+	if (sortBy === "updated") {
+		return maxNum((b.variants ?? []).map((variant) => variant.updatedAt)) - maxNum((a.variants ?? []).map((variant) => variant.updatedAt))
+	}
+
+	return a.name.localeCompare(b.name)
+}
+
+export const buildEnhancedModelSearchSections = (
+	models: Record<string, ModelSearchModelWithVariants>,
+	query: string,
+	hardware: HardwareProfile | undefined,
+	sortBy: ModelSortOption = "relevance",
+	phase: ModelSearchPhase = 3,
+	rankingProfile: RankingProfile = "balanced",
+): EnhancedModelSearchSections => {
+	const effectiveSort: ModelSortOption = rankingProfile === "best_speed" ? "speed" : rankingProfile === "best_quality" ? "quality" : sortBy
+	const relevant = Object.values(models)
+		.filter((model) => includesQuery(model, query))
+		.sort((a, b) => compareRelevantModels(a, b, effectiveSort))
+
+	const compatible: CompatibleModelResult[] = []
+	const nearMisses: NearMissResult[] = []
+
+	for (const model of relevant) {
+		for (const variant of model.variants ?? []) {
+			const reasons: string[] = []
+			let failedReason: string | undefined
+
+			if (variant.minVramGb !== undefined && hardware?.gpuVramGb !== undefined) {
+				if (variant.minVramGb > hardware.gpuVramGb) {
+					failedReason = `needs +${Math.ceil(variant.minVramGb - hardware.gpuVramGb)}GB VRAM`
+				} else {
+					reasons.push("VRAM fit")
+				}
+			}
+
+			if (!failedReason && variant.minRamGb !== undefined && hardware?.ramGb !== undefined) {
+				if (variant.minRamGb > hardware.ramGb) {
+					failedReason = `needs +${Math.ceil(variant.minRamGb - hardware.ramGb)}GB RAM`
+				} else {
+					reasons.push("RAM fit")
+				}
+			}
+
+			if (!failedReason && variant.minCpuClass && hardware?.cpuClass) {
+				if (cpuRank(variant.minCpuClass) > cpuRank(hardware.cpuClass)) {
+					failedReason = `requires ${variant.minCpuClass} CPU class`
+				} else {
+					reasons.push("CPU class fit")
+				}
+			}
+
+			if (!failedReason && variant.backend && hardware?.backend && variant.backend !== hardware.backend) {
+				failedReason = `backend mismatch (${variant.backend} required)`
+			}
+
+			if (failedReason) {
+				nearMisses.push({ model, variant, reason: failedReason })
+			} else {
+				const uncertainHardware = hardware?.gpuVramGb === undefined || hardware?.ramGb === undefined
+				compatible.push({
+					model,
+					variant,
+					whyCompatible: reasons.length ? reasons : ["Compatible"],
+					estimatedCompatibility: uncertainHardware,
+					compatibilityLabel: uncertainHardware ? "Estimated compatible" : "Compatible",
+					grade: phase >= 3 ? computeGrade(variant, hardware) : undefined,
+					gradeTooltip: phase >= 3 ? MODEL_SEARCH_GRADE_TOOLTIP : undefined,
+				})
+			}
+		}
+	}
+
+	return { compatible, relevant, nearMisses }
+}
